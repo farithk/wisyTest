@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:wisy_camera/Models/picture.dart';
@@ -38,19 +40,31 @@ class PictureList extends ConsumerWidget {
                   final PictureData currentPicture = PictureData.fromMap(data);
 
                   return Card(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8.0),
-                    child: Container(
-                      color: const Color.fromARGB(255, 204, 204, 204),
-                      child: Image.network(
-                        currentPicture.pictureURL,
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                        height: double.infinity,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8.0),
+                      child: Container(
+                        color: const Color.fromARGB(255, 204, 204, 204),
+                        child: FutureBuilder(
+                          future: loadImage(currentPicture.pictureURL),
+                          builder: (BuildContext context, AsyncSnapshot<Image> snapshot) {
+                            if (snapshot.connectionState == ConnectionState.waiting) {
+                              return const Center(
+                                child: CircularProgressIndicator(
+                                  color: Color.fromARGB(255, 180, 180, 180),
+                                ), // Show a CircularProgressIndicator while loading
+                              );
+                            } else if (snapshot.hasError) {
+                              return const Center(
+                                child: Text('Error loading image'), // Handle error
+                              );
+                            } else {
+                              return snapshot.data!; // Show the loaded image
+                            }
+                          },
+                        ),
                       ),
                     ),
-                  ),
-                );
+                  );
                 },
               );// Finally return a widget that shows a grid of pictures (snapshot.data.docs is the list of all documents )
             },
@@ -67,3 +81,26 @@ class PictureList extends ConsumerWidget {
     );
   }
 }
+
+  Future<Image> loadImage(String imageUrl) async {
+    final Completer<Image> completer = Completer<Image>();
+    final Image image = Image.network(
+      imageUrl,
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: double.infinity,
+    );
+
+    image.image.resolve(const ImageConfiguration()).addListener(
+      ImageStreamListener(
+        (ImageInfo info, bool _) {
+          completer.complete(image);
+        },
+        onError: (dynamic exception, StackTrace? stackTrace) {
+          completer.completeError(exception);
+        },
+      ),
+    );
+
+    return completer.future;
+  }
